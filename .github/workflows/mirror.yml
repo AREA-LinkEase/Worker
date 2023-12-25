@@ -1,0 +1,42 @@
+name: Mirror Worker
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  MIRROR_URL: git@github.com:AREA-LinkEase/project.git
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: ${{ env.MIRROR_URL }}
+          ref: 'master'
+          token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+
+      - name: setup user git
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+
+      - name: move to correct directory
+        run: |
+          rm -rf Worker || exit 0
+          mkdir Worker
+          cd ./Worker
+
+      - name: clone the current repository
+        uses: actions/checkout@v2
+
+      - name: delete useless folder
+        run: |
+          rm -rf .git
+
+      - name: push
+        run: |
+          git push origin master
