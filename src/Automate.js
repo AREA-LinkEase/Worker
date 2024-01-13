@@ -90,43 +90,49 @@ export default class Automate {
     "end": async (workflow, block) => {
       block.exit = block.entries.entry
     },
+    "environment": async (workflow, block) => {
+      if (block.data.value in this.variables)
+        block.exit = this.variables[block.data.value];
+      else
+        this.addLog("warning", "The ENV variable " + block.data.value + " doesn't exist")
+    },
     "variableString": async (workflow, block) => {
-      block.exit = block.value;
+      block.exit = block.data.value;
     },
     "variableBoolean": async (workflow, block) => {
-      block.exit = block.value === "true";
+      block.exit = block.data.value === "YES";
     },
     "variableNumber": async (workflow, block) => {
-      let value = parseInt(block.value);
-      if (Number.isNaN(value))
+      let value = parseInt(block.data.value);
+      if (!Number.isNaN(value))
         block.exit = value;
       else
         this.addLog("warning", "The string cannot be converted in variableNumber")
     },
     "variableArray": async (workflow, block) => {
       try {
-        block.exit = JSON.parse(block.value);
+        block.exit = JSON.parse(block.data.value);
       } catch (e) {
         this.addLog("warning", "The string cannot be converted into an array in variableArray")
       }
     },
     "variableObject": async (workflow, block) => {
       try {
-        block.exit = JSON.parse(block.value);
+        block.exit = JSON.parse(block.data.value);
       } catch (e) {
         this.addLog("warning", "The string cannot be converted into an object in variableObject")
       }
     },
     "variableRecurrence": async (workflow, block) => {
       try {
-        block.exit = JSON.parse(block.value);
+        block.exit = JSON.parse(block.data.value);
       } catch (e) {
         this.addLog("warning", "The string cannot be converted in variableRecurrence")
       }
     },
     "variableDate": async (workflow, block) => {
       try {
-        block.exit = JSON.parse(block.value);
+        block.exit = JSON.parse(block.data.value);
       } catch (e) {
         this.addLog("warning", "The string cannot be converted in Date")
       }
@@ -175,34 +181,28 @@ export default class Automate {
     },
     "request": async (workflow, block) => {
       try {
-        if (block.service in this.tokens) {
-          let access_token = this.tokens[block.service];
-          let body = (block.entries.body !== null) ? block.entries.body : null;
-          let init = {
-            method: block.value,
-            headers: {
-              "Authorization": "Bearer " + access_token
-            }
+        let access_token = this.tokens[block.entries.service] || "";
+        let body = (block.entries.body !== null) ? block.entries.body : null;
+        let init = {
+          method: block.data.value,
+          headers: {
+            "Authorization": "Bearer " + access_token
           }
-          if (body !== null) {
-            if (typeof body === "object")
-              init["body"] = body;
-            else
-              this.addLog("warning", "body cannot be used with this type, the body need to be an object or array")
-          }
-          let response = await fetch(block.entries.url, init)
-          if (response.ok) {
-            if (response.status !== 204)
-              block.exit = await response.json();
-          } else {
-            this.logs("danger", "request " + block.entries.url + " return " + response.status)
-          }
-        } else {
-          this.logs("warning", "You are not connected to " + block.service)
         }
+        if (body !== null) {
+          if (typeof body === "object")
+            init["body"] = body;
+          else
+            this.addLog("warning", "body cannot be used with this type, the body need to be an object or array")
+        }
+        let response = await fetch(block.entries.url, init)
+        try {
+          block.exit = await response.json();
+        } catch (e) {}
+        block.status = response.status;
       } catch (e) {
         console.log(e)
-        this.logs("danger", "Error with request -> " + e)
+        this.addLog("danger", "Error with request -> " + e)
       }
       await this.executeNextBlock(workflow, block, "exit")
     },
@@ -220,11 +220,11 @@ export default class Automate {
           return correspondences
         }
 
-        let variables = extractVariables(block.value)
-        let exit = block.value;
+        let variables = extractVariables(block.data.value)
+        let exit = block.data.value;
 
-        for (const variable of variables) {
-          exit = exit.replace(`%${variable}%`, (typeof block.entries[variable] !== "string") ? "" : encodeURIComponent(block.entries[variable]))
+        for (const [i, variable] of variables.entries()) {
+          exit = exit.replace(`%${variable}%`, (typeof block.entries["argument_" + (i + 1)] !== "string") ? "" : encodeURIComponent(block.entries["argument_" + (i + 1)]))
         }
         block.exit = exit;
       } catch (e) {
@@ -234,9 +234,9 @@ export default class Automate {
     },
     "at": async (workflow, block) => {
       try {
-        let value = (Array.isArray(block.entries.entry)) ? parseInt(block.value) : block.value
+        let value = (Array.isArray(block.entries.entry)) ? parseInt(block.entries.key) : block.entries.key
         if (Number.isNaN(value)) throw "Invalid number"
-        block.exit = block.entries.entry[block.value]
+        block.exit = block.entries.entry[value]
         await this.executeNextBlock(workflow, block, "exit")
       } catch (e) {
         this.logs("danger", "Error with at -> " + e)
@@ -247,6 +247,7 @@ export default class Automate {
   constructor(body, userId) {
     this.tokens = body.tokens;
     this.mainWorkflow = body.workflow;
+    this.variables = body.variables;
     this.logs = [];
     this.userId = userId;
   }
@@ -256,7 +257,7 @@ export default class Automate {
     let workflowEvent;
 
     try {
-      let response = await fetch(process.env.URL_API + "/worker/@next", {
+      let response = await fetch(process.env.URL_API + "/worker/events/" + block.data.eventID + "/workflow", {
         headers: {
           "authorization": process.env.WORKER_API
         }
@@ -283,15 +284,10 @@ export default class Automate {
     if (startBlock === null) return;
     await this.executeBlock(workflowEvent, startBlock)
     // prendre chaque valeur de sorti et mettre à jour le node
-    let toExecutePin = [];
-    for (const node of workflowEvent.nodes)
-      if (node.type === "end") {
-        block[node.value] = node.exit;
-        toExecutePin.push(node.value)
-      }
+    let endBlock = this.getBlockByType(workflowEvent, "end")
+    if (endBlock !== null)
+      block.exit = endBlock.entries["entry"]
     await this.executeNextBlock(workflow, block, "exit")
-    for (const pin of toExecutePin)
-      await this.executeNextBlock(workflow, block, pin)
   }
 
   getBlockById(workflow, id) {
@@ -304,9 +300,9 @@ export default class Automate {
 
   getBlockByType(workflow, type, value = null) {
     for (const block of workflow.nodes) {
-      if (block.type === type) {
+      if (block.data.label === type) {
         if (value !== null) {
-          if ("value" in block && block.value === value)
+          if ("value" in block.data && block.data.value === value)
             return block;
         } else
           return block;
@@ -319,18 +315,18 @@ export default class Automate {
     let entries = {};
 
     if ("executed" in block && block.executed) return;
-    console.log("executing block - " + block.type)
+    console.log("executing block - " + block.data.label)
     for (const edge of workflow.edges) {
       if (edge.target !== block.id) continue;
-      let [idSource, idTarget] = edge.id.split("#")
+      let [idSource, idTarget] = edge.link.split("#")
       let otherBlock = this.getBlockById(workflow, edge.source);
       await this.executeBlock(workflow, otherBlock)
       entries[idTarget] = (otherBlock[idSource] === undefined) ? null : otherBlock[idSource]
     }
     block.entries = entries;
     block.executed = true;
-    if (block.type in this.executeType)
-      await this.executeType[block.type](workflow, block)
+    if (block.data.label in this.executeType)
+      await this.executeType[block.data.label](workflow, block)
     else
       await this.executeEvent(workflow, block)
   }
@@ -338,7 +334,7 @@ export default class Automate {
   async executeNextBlock(workflow, block, edgeId) {
     for (const edge of workflow.edges) {
       if (edge.source !== block.id) continue;
-      let [idSource] = edge.id.split("#")
+      let [idSource] = edge.link.split("#")
       if (idSource !== edgeId) continue;
       let nextBlock = this.getBlockById(workflow, edge.target)
       await this.executeBlock(workflow, nextBlock)
@@ -348,7 +344,7 @@ export default class Automate {
   resetNextBlock(workflow, block, edgeId = null) {
     for (const edge of workflow.edges) {
       if (edge.source !== block.id) continue;
-      let [idSource] = edge.id.split("#")
+      let [idSource] = edge.link.split("#")
       if (edgeId !== null && idSource !== edgeId) continue;
       let nextBlock = this.getBlockById(workflow, edge.target)
       if (nextBlock.executed === true)
@@ -358,11 +354,15 @@ export default class Automate {
   }
 
   async start() {
-    let startBlock = this.getBlockByType(this.mainWorkflow, "start")
+    try {
+      let startBlock = this.getBlockByType(this.mainWorkflow, "start")
 
-    if (startBlock === null) return;
+      if (startBlock === null) return;
 
-    await this.executeBlock(this.mainWorkflow, startBlock)
+      await this.executeBlock(this.mainWorkflow, startBlock)
+    } catch (e) {
+      this.addLog("error", "error when starting process")
+    }
   }
 
   getLogs() {
