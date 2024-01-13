@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 0",
+    "test": "node src/test.js",
     "linter": "eslint \"**/*.js\""
   },
   "author": "Younes, Simon, Adil, Kéziah et Thomas",
