@@ -1,0 +1,50 @@
+name: Mirror Worker
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  MIRROR_URL: git@github.com:AREA-LinkEase/project.git
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: ${{ env.MIRROR_URL }}
+          path: './project'
+          ssh-key: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+
+      - name: setup user git
+        run: |
+          cd project
+          ls -la
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+
+      - name: delete directory
+        run: |
+          rm -rf ./project/Worker || exit 0
+
+      - name: clone the current repository
+        uses: actions/checkout@v2
+        with:
+          path: "./project/Worker"
+
+      - name: delete useless folder
+        run: |
+          rm -rf ./project/Worker/.git
+          ls -lR
+
+      - name: push
+        run: |
+          cd project
+          git add .
+          git commit -m "ADD Worker"
+          git push
