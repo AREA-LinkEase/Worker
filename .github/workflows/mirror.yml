@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  MIRROR_URL: git@github.com:AREA-LinkEase/project.git
+  MIRROR_URL: AREA-LinkEase/project
 
 jobs:
   compile:
