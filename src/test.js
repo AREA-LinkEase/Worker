@@ -38,6 +38,7 @@ dotenv.config();
       }, user.id)
 
       await automate.start();
+      console.log(automate.getLogs())
     }
   } catch (e) {
     console.log(e)
