@@ -41,6 +41,17 @@ setInterval(async () => {
 
       let logs = automate.getLogs();
 
+      if (automate.getIsEdited()) {
+        await fetch(url + "/worker/automate/" + json.automate.id + "/variables", {
+          headers: {
+            "authorization": process.env.WORKER_API,
+            "Content-Type": "application/json"
+          },
+          method: "PUT",
+          body: JSON.stringify(automate.getVariables())
+        })
+      }
+
       if (logs.length > 0) {
         await fetch(url + "/worker/automate/" + json.automate.id + "/logs", {
           headers: {

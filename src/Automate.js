@@ -84,6 +84,22 @@ export default class Automate {
       }
       await this.executeNextBlock(workflow, block, "exit")
     },
+    "ObjectToString": async (workflow, block) => {
+      try {
+        block.exit = JSON.stringify(block.entries.entry)
+      } catch (e) {
+        this.addLog("warning", "Bad type in ObjectToString")
+      }
+      await this.executeNextBlock(workflow, block, "exit")
+    },
+    "StringToObject": async (workflow, block) => {
+      try {
+        block.exit = JSON.parse(block.entries.entry)
+      } catch (e) {
+        this.addLog("warning", "Bad type in StringToObject")
+      }
+      await this.executeNextBlock(workflow, block, "exit")
+    },
     "start": async (workflow, block) => {
       await this.executeNextBlock(workflow, block, "exit")
     },
@@ -91,10 +107,16 @@ export default class Automate {
       block.exit = block.entries.entry
     },
     "environment": async (workflow, block) => {
-      if (block.data.value in this.variables)
+      if (typeof block.entries.entry === "string") {
+        this.variables[block.data.value] = block.entries.entry;
+        this.isEdited = true;
         block.exit = this.variables[block.data.value];
-      else
+      } else if (block.data.value in this.variables) {
+        block.exit = this.variables[block.data.value];
+      } else {
         this.addLog("warning", "The ENV variable " + block.data.value + " doesn't exist")
+      }
+      await this.executeNextBlock(workflow, block, "exit")
     },
     "variableString": async (workflow, block) => {
       block.exit = block.data.value;
@@ -250,6 +272,7 @@ export default class Automate {
     this.variables = body.variables;
     this.logs = [];
     this.userId = userId;
+    this.isEdited = false;
   }
 
   async executeEvent(workflow, block) {
@@ -367,6 +390,14 @@ export default class Automate {
 
   getLogs() {
     return this.logs;
+  }
+
+  getVariables() {
+    return this.variables;
+  }
+
+  getIsEdited() {
+    return this.isEdited
   }
 
   addLog(status, message) {
