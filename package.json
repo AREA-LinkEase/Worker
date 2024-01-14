@@ -1,0 +1,26 @@
+{
+  "name": "worker",
+  "version": "0.0.1",
+  "description": "",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node src/test.js",
+    "linter": "eslint \"**/*.js\""
+  },
+  "author": "Younes, Simon, Adil, Kéziah et Thomas",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@babel/core": "^7.23.6",
+    "@babel/preset-env": "^7.23.6",
+    "babel-jest": "^29.7.0",
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0"
+  }
+}
