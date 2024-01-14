@@ -220,6 +220,7 @@ export default class Automate {
         let response = await fetch(block.entries.url, init)
         try {
           block.exit = await response.json();
+          console.log(block.exit)
         } catch (e) {}
         block.status = response.status;
       } catch (e) {
@@ -256,9 +257,9 @@ export default class Automate {
     },
     "at": async (workflow, block) => {
       try {
-        let value = (Array.isArray(block.entries.entry)) ? parseInt(block.entries.key) : block.entries.key
+        let value = (Array.isArray(block.entries.element)) ? parseInt(block.entries.key) : block.entries.key
         if (Number.isNaN(value)) throw "Invalid number"
-        block.exit = block.entries.entry[value]
+        block.exit = block.entries.element[value]
         await this.executeNextBlock(workflow, block, "exit")
       } catch (e) {
         this.logs("danger", "Error with at -> " + e)
