@@ -191,9 +191,9 @@ export default class Automate {
         }
         if (body !== null) {
           if (typeof body === "object")
-            init["body"] = body;
-          else
-            this.addLog("warning", "body cannot be used with this type, the body need to be an object or array")
+            body = JSON.stringify(body)
+          init["body"] = body;
+          init["headers"]["Content-Type"] = "application/json";
         }
         let response = await fetch(block.entries.url, init)
         try {
