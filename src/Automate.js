@@ -11,6 +11,7 @@ export default class Automate {
     "for": async (workflow, block) => {
       if (typeof block.entries.count === "number") {
         for (let i = 0; i < parseInt(block.entries.count); i++) {
+          block.action = i
           await this.executeNextBlock(workflow, block, "action")
           this.resetNextBlock(workflow, block, "action")
         }
@@ -22,6 +23,7 @@ export default class Automate {
     "forEach": async (workflow, block) => {
       if (Array.isArray(block.entries.argument)) {
         for (const value of block.entries.argument) {
+          block.action = value
           await this.executeNextBlock(workflow, block, "action")
           this.resetNextBlock(workflow, block, "action")
         }
@@ -33,28 +35,28 @@ export default class Automate {
     "on": async (workflow, block) => {
       if ("condition" in block.entries) {
         let condition = block.entries.condition;
-        if (condition.type === "recurrence") {
+        console.log(condition)
+        if ("day" in condition) {
           let now = new Date();
-          if (condition.day === "all") {
+          if (condition.day === "All") {
             if (now.getHours() === condition.hours && now.getMinutes() === condition.minutes) {
               await this.executeNextBlock(workflow, block, "success")
             }
           } else {
             let day = now.toLocaleString('en-us', { weekday: 'long' }).toLowerCase();
-            if (day === condition.day) {
+            if (day === condition.day.toLowerCase()) {
               if (now.getHours() === condition.hours && now.getMinutes() === condition.minutes) {
                 await this.executeNextBlock(workflow, block, "success")
               }
             }
           }
         }
-        if (condition.type === "date") {
+        if ("timestamp" in condition) {
           let now = Date.now();
 
           if (condition.timestamp <= now)
             await this.executeNextBlock(workflow, block, "success")
         }
-        await this.executeNextBlock(workflow, block, "success")
       } else {
         await this.executeNextBlock(workflow, block, "failure")
       }
@@ -147,14 +149,14 @@ export default class Automate {
     },
     "variableRecurrence": async (workflow, block) => {
       try {
-        block.exit = JSON.parse(block.data.value);
+        block.exit = block.data.value;
       } catch (e) {
         this.addLog("warning", "The string cannot be converted in variableRecurrence")
       }
     },
     "variableDate": async (workflow, block) => {
       try {
-        block.exit = JSON.parse(block.data.value);
+        block.exit = block.data.value;
       } catch (e) {
         this.addLog("warning", "The string cannot be converted in Date")
       }
@@ -222,6 +224,7 @@ export default class Automate {
           block.exit = await response.json();
           console.log(block.exit)
         } catch (e) {}
+        console.log(response.status)
         block.status = response.status;
       } catch (e) {
         console.log(e)
@@ -247,7 +250,10 @@ export default class Automate {
         let exit = block.data.value;
 
         for (const [i, variable] of variables.entries()) {
-          exit = exit.replace(`%${variable}%`, (typeof block.entries["argument_" + (i + 1)] !== "string") ? "" : encodeURIComponent(block.entries["argument_" + (i + 1)]))
+          let value = (typeof block.entries["argument_" + (i + 1)] !== "string") ? "" : block.entries["argument_" + (i + 1)];
+          if (exit.includes("http"))
+            value = encodeURIComponent(value)
+          exit = exit.replace(`%${variable}%`, value)
         }
         block.exit = exit;
       } catch (e) {
@@ -262,7 +268,7 @@ export default class Automate {
         block.exit = block.entries.element[value]
         await this.executeNextBlock(workflow, block, "exit")
       } catch (e) {
-        this.logs("danger", "Error with at -> " + e)
+        this.addLog("danger", "Error with at -> " + e)
       }
     }
   }
@@ -339,6 +345,7 @@ export default class Automate {
     let entries = {};
 
     if ("executed" in block && block.executed) return;
+    block.executed = true;
     console.log("executing block - " + block.data.label)
     for (const edge of workflow.edges) {
       if (edge.target !== block.id) continue;
@@ -385,6 +392,7 @@ export default class Automate {
 
       await this.executeBlock(this.mainWorkflow, startBlock)
     } catch (e) {
+      console.log(e)
       this.addLog("error", "error when starting process")
     }
   }
