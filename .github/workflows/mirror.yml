@@ -11,32 +11,40 @@ env:
 jobs:
   compile:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v2
         with:
           repository: ${{ env.MIRROR_URL }}
-          ref: 'master'
-          token:  ${{ secrets.ACTIONS_GITHUB_TOKEN }}
+          path: './project'
+          ssh-key: ${{ secrets.ACTIONS_GITHUB_TOKEN }}
 
       - name: setup user git
         run: |
+          cd project
+          ls -la
           git config user.name "GitHub Actions Bot"
           git config user.email "<>"
 
-      - name: move to correct directory
+      - name: delete directory
         run: |
-          rm -rf Worker || exit 0
-          mkdir Worker
-          cd ./Worker
+          rm -rf ./project/Worker || exit 0
 
       - name: clone the current repository
         uses: actions/checkout@v2
+        with:
+          path: "./project/Worker"
 
       - name: delete useless folder
         run: |
-          rm -rf .git
+          rm -rf ./project/Worker/.git
+          ls -lR
 
       - name: push
         run: |
-          git push origin master
+          cd project
+          git add .
+          git commit -m "ADD Worker"
+          git push
